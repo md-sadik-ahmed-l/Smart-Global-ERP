@@ -1,36 +1,47 @@
 "use client";
 
-import { useERPStore } from "@/store/erp-store";
+import { signIn } from "next-auth/react";
 import { COMPANY } from "@/lib/erp/demo-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import {
   Crown, Sparkles, Mail, Lock, ArrowRight, ShieldCheck, Globe,
-  TrendingUp, Users, Package, Zap, Eye, EyeOff, Phone, MapPin,
+  TrendingUp, Users, Package, Zap, Eye, EyeOff, Phone, MapPin, AlertCircle,
 } from "lucide-react";
 
 export function LoginScreen() {
-  const login = useERPStore((s) => s.login);
   const [email, setEmail] = useState("sayem@smartwebstudio.com");
   const [password, setPassword] = useState("smartglobal");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
-    setTimeout(() => {
-      login();
-      setLoading(false);
-    }, 600);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+
+    setLoading(false);
+
+    if (result?.error) {
+      setError(result.error === "CredentialsSignin" ? "Invalid email or password" : result.error);
+    } else if (result?.ok) {
+      // Session will be picked up automatically — page will re-render
+      window.location.reload();
+    }
   };
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Left: Branding hero */}
       <div className="relative hidden flex-col justify-between overflow-hidden bg-[#0a0f1f] p-10 lg:flex">
-        {/* Decorative grid pattern + glow */}
         <div className="absolute inset-0 grid-pattern opacity-40" />
         <div className="absolute -left-40 top-1/4 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
         <div className="absolute -right-20 bottom-1/4 h-72 w-72 rounded-full bg-purple-600/20 blur-3xl" />
@@ -67,7 +78,6 @@ export function LoginScreen() {
             into a single real-time cockpit built for fast-growing businesses.
           </p>
 
-          {/* Feature pills */}
           <div className="mt-6 grid grid-cols-2 gap-3">
             {[
               { icon: TrendingUp, label: "Real-Time Analytics", color: "#3b82f6" },
@@ -106,7 +116,6 @@ export function LoginScreen() {
       {/* Right: Login form */}
       <div className="flex items-center justify-center bg-background p-6 sm:p-10">
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
               <span className="text-xl font-bold text-white">S</span>
@@ -120,13 +129,20 @@ export function LoginScreen() {
           <div className="mb-8">
             <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1">
               <Sparkles className="h-3 w-3 text-indigo-400" />
-              <span className="text-[11px] font-medium text-indigo-300">Demo Access</span>
+              <span className="text-[11px] font-medium text-indigo-300">Enterprise Edition</span>
             </div>
             <h2 className="text-2xl font-bold text-foreground">Welcome back 👋</h2>
             <p className="mt-1.5 text-sm text-muted-foreground">
               Sign in to your <span className="font-medium text-foreground">{COMPANY.company}</span> account
             </p>
           </div>
+
+          {error && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-400">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
@@ -142,6 +158,7 @@ export function LoginScreen() {
                   placeholder="you@company.com"
                   className="h-11 border-border bg-card pl-10 text-sm"
                   required
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -167,6 +184,7 @@ export function LoginScreen() {
                   placeholder="••••••••"
                   className="h-11 border-border bg-card pl-10 pr-10 text-sm"
                   required
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -208,20 +226,6 @@ export function LoginScreen() {
             </Button>
           </form>
 
-          {/* Demo credentials hint */}
-          <div className="mt-6 rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-3">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-indigo-300">
-              Demo Credentials (pre-filled)
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Email: <span className="font-mono text-foreground">{email}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Password: <span className="font-mono text-foreground">{password}</span>
-            </p>
-          </div>
-
-          {/* Owner footer */}
           <div className="mt-6 border-t border-border pt-6 text-xs text-muted-foreground">
             <p className="flex items-center gap-1.5">
               <Crown className="h-3.5 w-3.5 text-amber-400" />

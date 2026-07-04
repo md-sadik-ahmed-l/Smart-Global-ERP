@@ -22,7 +22,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Brain, BarChart3, Plug, Workflow, Bell, ScrollText, DatabaseBackup,
   Smartphone, Cpu, Server, Settings, Bot, Zap, Gift, Share2, DoorOpen,
   FileSignature, Leaf, MessagesSquare,
-  // extras used by demo data
+  // extras used by stat cards and module health panels
   TrendingUp, TrendingDown, Wallet, Target, PackageCheck, XCircle,
   AlertTriangle, AlertCircle, UserX, UserCheck, Clock, CalendarClock,
   FolderTree, Tag, ReceiptText, ShoppingBag, FileText,

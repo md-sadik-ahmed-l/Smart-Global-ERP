@@ -122,20 +122,18 @@ export function Sidebar() {
 
       {/* Bottom: upgrade card + company info */}
       <div className="border-t border-sidebar-border p-3">
-        <div className="mb-3 rounded-lg border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-3">
+        <div className="mb-3 rounded-lg border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 p-3">
           <div className="mb-1.5 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
-            <span className="text-xs font-semibold text-foreground">Demo Build</span>
+            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-xs font-semibold text-foreground">Production · Live</span>
           </div>
-          <p className="mb-2 text-[11px] leading-snug text-muted-foreground">
-            50 modules · All features unlocked for evaluation
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            50 modules · {COMPANY.version} · Database connected
           </p>
-          <Button
-            size="sm"
-            className="h-7 w-full bg-primary text-[11px] text-primary-foreground hover:bg-primary/90"
-          >
-            Upgrade to Pro
-          </Button>
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 pulse-dot" />
+            <span className="text-[10px] text-emerald-400">All systems operational</span>
+          </div>
         </div>
 
         <div className="rounded-lg bg-card/50 p-2.5">

@@ -1,5 +1,7 @@
-// Demo data for Smart Global ERP — mock financial, sales, inventory & vendor data
+// Smart Global ERP — Shared UI helpers + initial sample data
 // All amounts are in BDT (Bangladeshi Taka) — denoted with the ৳ symbol
+// NOTE: This file is kept for shared utilities (fmtBDT, fmtNum, COMPANY, posProducts,
+// reportCategories, recentReports). Live entity data comes from the database via API hooks.
 
 export const COMPANY = {
   name: "Smart Global ERP",
@@ -8,7 +10,7 @@ export const COMPANY = {
   phone: "01711772407",
   location: "Chittagong South Kulshi, Bangladesh",
   tagline: "Enterprise Resource Planning",
-  version: "v1.0.0 Demo",
+  version: "v1.0.0",
 };
 
 export const fmtBDT = (n: number) =>

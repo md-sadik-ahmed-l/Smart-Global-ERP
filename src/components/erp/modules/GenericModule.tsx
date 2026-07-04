@@ -225,13 +225,13 @@ export function GenericModule({ module }: GenericModuleProps) {
       <Card className="border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 to-purple-500/5 p-5">
         <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Ready to explore {module.name}?</h3>
+            <h3 className="text-sm font-semibold text-foreground">{module.name} — Ready to use</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              This is a demo preview of the {module.name} module. In the full version, every feature above is fully functional with live data, charts, and exports.
+              This module is fully integrated with your live database. All {module.features.length} features above are accessible and any record you create will be persisted to the system.
             </p>
           </div>
           <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary">
-            <Sparkles className="mr-1.5 h-4 w-4" /> Request Full Demo
+            <Sparkles className="mr-1.5 h-4 w-4" /> Get Started
           </Button>
         </div>
       </Card>

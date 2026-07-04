@@ -2,56 +2,27 @@
 
 import { create } from "zustand";
 
-interface ERPUser {
-  name: string;
-  role: string;
-  email: string;
-  avatar: string;
-}
+// Note: We use next-auth/react's useSession for real auth state in components,
+// but keep this Zustand store for UI-only state (active module, sidebar, etc.)
 
 interface ERPState {
-  // Auth
-  isAuthenticated: boolean;
-  user: ERPUser | null;
-  login: () => void;
-  logout: () => void;
-
-  // Navigation
   activeModuleId: string;
   setActiveModule: (id: string) => void;
 
-  // Sidebar
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
 
-  // Global search
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
 
-  // Theme
   theme: "dark" | "light";
   toggleTheme: () => void;
 
-  // Notifications panel
   notifPanelOpen: boolean;
   setNotifPanelOpen: (open: boolean) => void;
 }
 
-export const useERPStore = create<ERPState>((set, get) => ({
-  isAuthenticated: false,
-  user: null,
-  login: () =>
-    set({
-      isAuthenticated: true,
-      user: {
-        name: "Mohammad Sayem",
-        role: "CEO / Owner",
-        email: "sayem@smartwebstudio.com",
-        avatar: "MS",
-      },
-    }),
-  logout: () => set({ isAuthenticated: false, user: null, activeModuleId: "executive-dashboard" }),
-
+export const useERPStore = create<ERPState>((set) => ({
   activeModuleId: "executive-dashboard",
   setActiveModule: (id) => set({ activeModuleId: id }),
 
