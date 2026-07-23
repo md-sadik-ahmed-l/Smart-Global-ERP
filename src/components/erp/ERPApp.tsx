@@ -20,6 +20,7 @@ import { lazy, Suspense } from "react";
 import { ManufacturingModule } from "./modules/ManufacturingModule";
 import { PayrollModule } from "./modules/PayrollModule";
 import { UserManagementModule } from "./modules/UserManagementModule";
+import { POSModule } from "./modules/POSModule";
 
 // Code-split heavy modules (lazy loaded on first access)
 // const POSModule = lazy(() => import("./modules/POSModule").then(m => ({ default: m.POSModule })));
@@ -37,7 +38,7 @@ export function ERPApp() {
       case "sales":                return <SalesModule />;
       case "purchase":             return <PurchaseModule />;
       case "inventory":            return <InventoryModule />;
-      case "pos":                  return <GenericModule module={mod} />;
+      case "pos":                  return <POSModule />;
       case "product":              return <ProductModule />;
       case "hr":                   return <HRModule />;
       case "finance":              return <FinanceModule />;

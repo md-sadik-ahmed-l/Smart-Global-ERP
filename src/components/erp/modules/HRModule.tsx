@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { StatCard } from "../ui/StatCard";
 import { ChartCard } from "../ui/ChartCard";
 import { PageHeader } from "../ui/PageHeader";
-import { useDashboardStats, useBranches } from "@/lib/erp/hooks";
+import { useDashboardStats, useBranches, useEmployees } from "@/lib/erp/hooks";
 
 const iconMap: Record<string, any> = { Users, UserCheck, CalendarClock, Clock };
 
 export function HRModule() {
   const { data: dashData } = useDashboardStats();
   const { data: branchData } = useBranches();
+  const { data: empData } = useEmployees();
   const k = dashData?.kpis;
 
   const totalEmployees = k?.totalEmployees ?? 0;
@@ -25,16 +26,19 @@ export function HRModule() {
     { label: "Total Vendors", value: (k?.totalVendors ?? 0).toLocaleString(), delta: 5.2, icon: "Clock", color: "#8b5cf6" },
   ];
 
-  // Department distribution derived from branches
-  const departments = [
-    { dept: "Sales", count: Math.round(totalEmployees * 0.18), color: "#3b82f6" },
-    { dept: "Production", count: Math.round(totalEmployees * 0.32), color: "#10b981" },
-    { dept: "Finance", count: Math.round(totalEmployees * 0.08), color: "#f59e0b" },
-    { dept: "HR & Admin", count: Math.round(totalEmployees * 0.10), color: "#8b5cf6" },
-    { dept: "IT", count: Math.round(totalEmployees * 0.07), color: "#ec4899" },
-    { dept: "Operations", count: Math.round(totalEmployees * 0.15), color: "#14b8a6" },
-    { dept: "Others", count: Math.round(totalEmployees * 0.10), color: "#06b6d4" },
-  ].filter((d) => d.count > 0);
+  // Real department distribution from employee database
+  const allEmployees = (empData?.employees || []) as any[];
+  const deptCountMap: Record<string, number> = {};
+  allEmployees.forEach((e) => {
+    const dept = e.department || "Unassigned";
+    deptCountMap[dept] = (deptCountMap[dept] || 0) + 1;
+  });
+  const deptColors = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#06b6d4", "#f97316"];
+  const departments = Object.entries(deptCountMap).map(([dept, count], i) => ({
+    dept,
+    count,
+    color: deptColors[i % deptColors.length],
+  })).filter((d) => d.count > 0);
 
   // Branch headcount
   const branchHeadcount = (branchData?.branches || []).map((b: any, i: number) => ({
@@ -140,6 +144,64 @@ export function HRModule() {
             </div>
           ))}
         </div>
+      </Card>
+
+      {/* Employee Directory — real DB data */}
+      <Card className="glass p-5 rounded-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Employee Directory</h3>
+            <p className="text-xs text-muted-foreground">{allEmployees.length} employees</p>
+          </div>
+        </div>
+        {allEmployees.length === 0 ? (
+          <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+            No employees found. Add employees via the Employees API.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                  <th className="py-2 text-left font-medium">Code</th>
+                  <th className="py-2 text-left font-medium">Name</th>
+                  <th className="py-2 text-left font-medium">Department</th>
+                  <th className="py-2 text-left font-medium">Designation</th>
+                  <th className="py-2 text-left font-medium">Branch</th>
+                  <th className="py-2 text-left font-medium">Join Date</th>
+                  <th className="py-2 text-center font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allEmployees.map((emp: any) => (
+                  <tr key={emp.id} className="border-b border-border/50 hover:bg-white/[0.03]">
+                    <td className="py-2.5 font-mono text-xs text-indigo-400">{emp.employeeCode}</td>
+                    <td className="py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-500/15 text-[10px] font-bold text-indigo-400">
+                          {emp.name?.split(" ").map((n: string) => n[0]).slice(0, 2).join("")}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{emp.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{emp.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 text-xs text-muted-foreground">{emp.department || "—"}</td>
+                    <td className="py-2.5 text-xs text-muted-foreground">{emp.designation || "—"}</td>
+                    <td className="py-2.5 text-xs text-muted-foreground">{emp.branch?.name || "—"}</td>
+                    <td className="py-2.5 text-xs text-muted-foreground">{new Date(emp.joinDate).toISOString().slice(0, 10)}</td>
+                    <td className="py-2.5 text-center">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${emp.status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-500/15 text-slate-400"}`}>
+                        {emp.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
     </div>
   );

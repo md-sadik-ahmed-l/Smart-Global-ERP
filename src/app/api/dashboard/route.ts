@@ -43,20 +43,44 @@ export async function GET() {
     const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), 1);
     const allOrders = await db.salesOrder.findMany({
       where: { tenantId, orderDate: { gte: yearAgo } },
-      select: { totalAmount: true, orderDate: true, customer: { select: { country: true } } },
+      select: { totalAmount: true, paidAmount: true, orderDate: true, paymentMethod: true, customer: { select: { country: true } } },
+    });
+
+    // Monthly purchase data (for purchase trend chart)
+    const allPurchaseOrders = await db.purchaseOrder.findMany({
+      where: { tenantId, orderDate: { gte: yearAgo } },
+      select: { totalAmount: true, paidAmount: true, orderDate: true },
     });
 
     const revenueTrend = [];
+    const salesChannelTrend = []; // online vs offline
+    const purchaseTrend = [];
+
     for (let i = 11; i >= 0; i--) {
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-      const rev = allOrders.filter((o) => o.orderDate >= start && o.orderDate < end).reduce((s, o) => s + o.totalAmount, 0);
+
+      const monthOrders = allOrders.filter((o) => o.orderDate >= start && o.orderDate < end);
+      const rev = monthOrders.reduce((s, o) => s + o.totalAmount, 0);
+      const paid = monthOrders.reduce((s, o) => s + o.paidAmount, 0);
+
       revenueTrend.push({
         month: start.toLocaleString("en", { month: "short" }),
         revenue: rev,
         profit: Math.round(rev * 0.23),
         expense: Math.round(rev * 0.28),
       });
+
+      // Sales channel: online (Online/Card) vs offline (Cash/Bank/Credit)
+      const onlineRev = monthOrders.filter((o) => o.paymentMethod === "Online" || o.paymentMethod === "Card").reduce((s, o) => s + o.totalAmount, 0);
+      const offlineRev = rev - onlineRev;
+      salesChannelTrend.push({ month: start.toLocaleString("en", { month: "short" }), online: onlineRev, offline: offlineRev });
+
+      // Purchase vs payment trend
+      const monthPOs = allPurchaseOrders.filter((o) => o.orderDate >= start && o.orderDate < end);
+      const purchase = monthPOs.reduce((s, o) => s + o.totalAmount, 0);
+      const payment = monthPOs.reduce((s, o) => s + o.paidAmount, 0);
+      purchaseTrend.push({ month: start.toLocaleString("en", { month: "short" }), purchase, payment });
     }
 
     // Sales by country (from the same allOrders query)
@@ -127,6 +151,8 @@ export async function GET() {
         payrollThisMonth: 0,
       },
       revenueTrend,
+      salesChannelTrend,
+      purchaseTrend,
       salesByCountry,
       branchPerformance,
       recentOrders: recentOrdersEnriched,

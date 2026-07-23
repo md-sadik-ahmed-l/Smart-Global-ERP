@@ -10,7 +10,7 @@ import { ChartCard } from "../ui/ChartCard";
 import { DataTable, StatusBadge, statusVariant, type Column } from "../ui/DataTable";
 import { PageHeader } from "../ui/PageHeader";
 import { FormModal, type FormField } from "../ui/FormModal";
-import { usePurchaseOrders, useVendors, useProducts, useCreatePurchaseOrder } from "@/lib/erp/hooks";
+import { usePurchaseOrders, useVendors, useProducts, useCreatePurchaseOrder, useDashboardStats } from "@/lib/erp/hooks";
 import { fmtBDT } from "@/lib/erp/demo-data";
 
 const iconMap: Record<string, any> = { Truck, FileText, PackageCheck, AlertCircle };
@@ -44,6 +44,7 @@ export function PurchaseModule() {
   const { data, isLoading } = usePurchaseOrders();
   const { data: vendData } = useVendors();
   const { data: prodData } = useProducts();
+  const { data: dashData } = useDashboardStats();
   const createPO = useCreatePurchaseOrder();
 
   const orders = (data?.orders || []) as PO[];
@@ -58,20 +59,8 @@ export function PurchaseModule() {
     { label: "Supplier Due", value: fmtBDT(supplierDue), delta: -4.2, icon: "AlertCircle", color: "#ef4444" },
   ];
 
-  const purchaseVsPayment = [
-    { month: "Jan", purchase: 720000, payment: 680000 },
-    { month: "Feb", purchase: 810000, payment: 740000 },
-    { month: "Mar", purchase: 880000, payment: 820000 },
-    { month: "Apr", purchase: 760000, payment: 800000 },
-    { month: "May", purchase: 920000, payment: 860000 },
-    { month: "Jun", purchase: 1040000, payment: 940000 },
-    { month: "Jul", purchase: 980000, payment: 920000 },
-    { month: "Aug", purchase: 1120000, payment: 1020000 },
-    { month: "Sep", purchase: 1180000, payment: 1080000 },
-    { month: "Oct", purchase: 1240000, payment: 1140000 },
-    { month: "Nov", purchase: 1320000, payment: 1220000 },
-    { month: "Dec", purchase: 1380000, payment: 1280000 },
-  ];
+  // Real purchase vs payment trend from dashboard API
+  const purchaseVsPayment = dashData?.purchaseTrend || [];
 
   const poFormFields: FormField[] = [
     {

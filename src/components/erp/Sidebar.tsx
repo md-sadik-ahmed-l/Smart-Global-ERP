@@ -4,24 +4,82 @@ import { useERPStore } from "@/store/erp-store";
 import { MODULES, MODULE_CATEGORIES, type ModuleCategory } from "@/lib/erp/modules";
 import { getIcon } from "./ui/icon-map";
 import { COMPANY } from "@/lib/erp/demo-data";
+import { useI18n } from "@/lib/i18n/context";
+import type { TranslationKey } from "@/lib/i18n/translations";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { ChevronDown, Crown, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const categoryLabels: Record<ModuleCategory, string> = {
-  Executive: "Executive",
-  "Sales & CRM": "Sales & CRM",
-  "Purchase & Inventory": "Purchase & Inventory",
-  "HR & Finance": "HR & Finance",
-  Operations: "Operations",
-  System: "System",
-  Advanced: "Advanced",
+const categoryTranslationKeys: Record<ModuleCategory, TranslationKey> = {
+  Executive: "cat_executive",
+  "Sales & CRM": "cat_sales_crm",
+  "Purchase & Inventory": "cat_purchase_inventory",
+  "HR & Finance": "cat_hr_finance",
+  Operations: "cat_operations",
+  System: "cat_system",
+  Advanced: "cat_advanced",
+};
+
+// Map module IDs to translation keys
+const moduleTranslationKeys: Record<string, TranslationKey> = {
+  "executive-dashboard": "mod_executive_dashboard",
+  crm: "mod_crm",
+  "buyers-suppliers": "mod_vendors",
+  marketplace: "mod_marketplace",
+  products: "mod_products",
+  sales: "mod_sales",
+  purchase: "mod_purchase",
+  inventory: "mod_inventory",
+  pos: "mod_pos",
+  ecommerce: "mod_ecommerce",
+  manufacturing: "mod_manufacturing",
+  "garments-merchandising": "mod_merchandising",
+  "sample-development": "mod_sample_dev",
+  "quality-control": "mod_qc",
+  hr: "mod_hr",
+  attendance: "mod_attendance",
+  payroll: "mod_payroll",
+  finance: "mod_finance",
+  banking: "mod_banking",
+  "courier-logistics": "mod_logistics",
+  dms: "mod_dms",
+  "fixed-asset": "mod_assets",
+  helpdesk: "mod_helpdesk",
+  "project-management": "mod_projects",
+  "multi-company": "mod_multi_company",
+  "multi-branch": "mod_multi_branch",
+  "multi-currency": "mod_multi_currency",
+  subscription: "mod_subscription",
+  "ai-bi": "mod_ai_bi",
+  "reports-analytics": "mod_reports",
+  "api-integration": "mod_api_integration",
+  "security-access": "mod_security",
+  workflow: "mod_workflow",
+  notifications: "mod_notifications",
+  "audit-compliance": "mod_audit",
+  "backup-recovery": "mod_backup",
+  "mobile-app": "mod_mobile",
+  iot: "mod_iot",
+  "cloud-server": "mod_cloud",
+  "system-admin": "mod_system_admin",
+  "ai-copilot": "mod_ai_copilot",
+  automation: "mod_automation",
+  "marketplace-advanced": "mod_marketplace_pro",
+  "franchise-dealer": "mod_franchise",
+  "loyalty-rewards": "mod_loyalty",
+  affiliate: "mod_affiliate",
+  "visitor-gate-pass": "mod_visitor",
+  "legal-contract": "mod_legal",
+  "esg-sustainability": "mod_esg",
+  "communication-hub": "mod_communication",
+  "user-management": "mod_user_management",
 };
 
 export function Sidebar() {
   const { activeModuleId, setActiveModule, sidebarCollapsed } = useERPStore();
+  const { t } = useI18n();
   const [expandedCats, setExpandedCats] = useState<Set<ModuleCategory>>(
     new Set(["Executive", "Sales & CRM", "Purchase & Inventory"])
   );
@@ -73,7 +131,7 @@ export function Sidebar() {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <span>{categoryLabels[cat]}</span>
+                  <span>{t(categoryTranslationKeys[cat])}</span>
                   <ChevronDown
                     className={cn(
                       "h-3.5 w-3.5 transition-transform",

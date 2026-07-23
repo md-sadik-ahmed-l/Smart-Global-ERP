@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
+import { I18nProvider } from "@/lib/i18n/I18nContext";
 
 const inter = Inter({
   variable: "--font-geist-sans",

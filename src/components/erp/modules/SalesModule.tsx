@@ -10,7 +10,7 @@ import { ChartCard } from "../ui/ChartCard";
 import { DataTable, StatusBadge, statusVariant, type Column } from "../ui/DataTable";
 import { PageHeader } from "../ui/PageHeader";
 import { FormModal, type FormField } from "../ui/FormModal";
-import { useSalesOrders, useCustomers, useProducts, useCreateSalesOrder } from "@/lib/erp/hooks";
+import { useSalesOrders, useCustomers, useProducts, useCreateSalesOrder, useDashboardStats } from "@/lib/erp/hooks";
 import { fmtBDT } from "@/lib/erp/demo-data";
 
 const iconMap: Record<string, any> = { ShoppingCart, Package, TrendingUp, AlertCircle };
@@ -44,6 +44,7 @@ export function SalesModule() {
   const { data, isLoading } = useSalesOrders();
   const { data: custData } = useCustomers();
   const { data: prodData } = useProducts();
+  const { data: dashData } = useDashboardStats();
   const createOrder = useCreateSalesOrder();
 
   const orders = (data?.orders || []) as Order[];
@@ -58,21 +59,8 @@ export function SalesModule() {
     { label: "Pending Payment", value: fmtBDT(totalDue), delta: -2.4, icon: "AlertCircle", color: "#ef4444" },
   ];
 
-  // Sales trend (synthetic monthly for visualization)
-  const salesTrend = [
-    { month: "Jan", online: 420000, offline: 580000 },
-    { month: "Feb", online: 480000, offline: 620000 },
-    { month: "Mar", online: 520000, offline: 680000 },
-    { month: "Apr", online: 460000, offline: 720000 },
-    { month: "May", online: 620000, offline: 780000 },
-    { month: "Jun", online: 720000, offline: 820000 },
-    { month: "Jul", online: 680000, offline: 760000 },
-    { month: "Aug", online: 820000, offline: 880000 },
-    { month: "Sep", online: 920000, offline: 940000 },
-    { month: "Oct", online: 1020000, offline: 980000 },
-    { month: "Nov", online: 1140000, offline: 1040000 },
-    { month: "Dec", online: 1280000, offline: 1120000 },
-  ];
+  // Real sales trend from dashboard API (online vs offline by month)
+  const salesTrend = dashData?.salesChannelTrend || [];
 
   // Build dynamic form for new order
   const orderFormFields: FormField[] = [

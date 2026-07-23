@@ -7,6 +7,7 @@ import { COMPANY } from "@/lib/erp/demo-data";
 import { Button } from "@/components/ui/button";
 import { getModuleById } from "@/lib/erp/modules";
 import { GlobalSearch } from "./GlobalSearch";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import {
   Search, Bell, Menu, Sun, Moon, Globe, ChevronDown,
   Crown, Settings, LogOut, User, MessageSquare, HelpCircle,
@@ -61,22 +62,8 @@ export function Header() {
 
       {/* Right: actions */}
       <div className="flex items-center gap-1.5">
-        {/* Language */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-card hover:text-foreground">
-              <Globe className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40 bg-popover border-border">
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Language</DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-border" />
-            <DropdownMenuItem className="text-sm text-foreground hover:bg-card focus:bg-card">English</DropdownMenuItem>
-            <DropdownMenuItem className="text-sm text-foreground hover:bg-card focus:bg-card">বাংলা</DropdownMenuItem>
-            <DropdownMenuItem className="text-sm text-foreground hover:bg-card focus:bg-card">हिन्दी</DropdownMenuItem>
-            <DropdownMenuItem className="text-sm text-foreground hover:bg-card focus:bg-card">العربية</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Language Switcher — 12 languages, translates entire ERP */}
+        <LanguageSwitcher />
 
         {/* Theme toggle */}
         <Button
