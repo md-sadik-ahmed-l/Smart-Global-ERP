@@ -33,6 +33,8 @@ export interface ModuleDef {
     | "finance"
     | "reports"
     | "manufacturing"
+    | "payroll"
+    | "user-management"
     | "generic";
 }
 
@@ -711,8 +713,25 @@ export const MODULES: ModuleDef[] = [
     ],
   },
   {
-    id: "system-admin",
+    id: "user-management",
     number: 40,
+    name: "User Management & RBAC",
+    shortName: "Users & Roles",
+    category: "System",
+    icon: "UserCog",
+    description: "Create user accounts, assign roles, manage permissions & access control",
+    variant: "user-management",
+    features: [
+      "User Account Creation", "User Login Access", "Role Assignment", "Permission Matrix",
+      "Role Management", "Custom Roles", "Module-Level Permissions", "Action-Level Permissions",
+      "User Activation", "User Deactivation", "Password Reset", "Account Suspension",
+      "Branch Assignment", "Department Assignment", "User Activity Tracking", "Last Login Monitor",
+      "RBAC Enforcement", "Audit Trail", "2FA Configuration", "Access Reports",
+    ],
+  },
+  {
+    id: "system-admin",
+    number: 41,
     name: "System Administration",
     shortName: "Admin",
     category: "System",
