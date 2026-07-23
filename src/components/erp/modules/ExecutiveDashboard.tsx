@@ -5,6 +5,7 @@ import {
   TrendingUp, TrendingDown, Wallet, ShoppingCart, Package, Users,
   UserCog, Boxes, Crown, AlertTriangle, CheckCircle2, Info, XCircle,
   Download, Calendar, ArrowUpRight, Activity, DollarSign, Globe2, RefreshCw,
+  Factory, Wifi,
 } from "lucide-react";
 import {
   AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip,
@@ -13,10 +14,14 @@ import {
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 import { StatCard } from "../ui/StatCard";
 import { ChartCard } from "../ui/ChartCard";
 import { DataTable, StatusBadge, statusVariant, type Column } from "../ui/DataTable";
+import { FactoryFloor3D } from "../ui/FactoryFloor3D";
+import { AIInsightsPanel } from "../ui/AIInsightsPanel";
 import { useDashboardStats } from "@/lib/erp/hooks";
+import { useRealtime } from "@/lib/erp/useRealtime";
 import { fmtBDT, fmtNum } from "@/lib/erp/demo-data";
 
 const iconMap: Record<string, any> = {
@@ -76,6 +81,9 @@ export function ExecutiveDashboard() {
   const { data: session } = useSession();
   const { data, isLoading, refetch, isFetching } = useDashboardStats();
   const userName = (session?.user as any)?.name || "User";
+  const tenantId = (session?.user as any)?.tenantId;
+  const userId = (session?.user as any)?.id;
+  const { connected: realtimeConnected } = useRealtime(tenantId, userId);
 
   if (isLoading || !data) {
     return (
@@ -119,7 +127,7 @@ export function ExecutiveDashboard() {
   return (
     <div className="space-y-6">
       {/* Hero header */}
-      <div className="relative overflow-hidden rounded-xl border border-indigo-500/20 bg-gradient-to-br from-[#0f1426] via-[#131a2e] to-[#1c2440] p-6">
+      <div className="glass-strong relative overflow-hidden rounded-2xl p-6">
         <div className="absolute inset-0 grid-pattern opacity-30" />
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-indigo-600/20 blur-3xl" />
         <div className="absolute -bottom-20 right-32 h-48 w-48 rounded-full bg-purple-600/15 blur-3xl" />
@@ -165,6 +173,11 @@ export function ExecutiveDashboard() {
               Live
               <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400 pulse-dot" />
             </Button>
+            {/* Realtime connection indicator */}
+            <div className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium ${realtimeConnected ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-amber-500/30 bg-amber-500/10 text-amber-400"}`}>
+              <Wifi className="h-3.5 w-3.5" />
+              {realtimeConnected ? "Realtime" : "Connecting"}
+            </div>
           </div>
         </div>
       </div>
@@ -183,10 +196,14 @@ export function ExecutiveDashboard() {
               icon={Icon}
               color={kpi.color}
               subtitle={kpi.subtitle}
+              index={execKPIs.indexOf(kpi)}
             />
           );
         })}
       </div>
+
+      {/* AI Insights Panel — Real AI-powered business forecasting */}
+      <AIInsightsPanel />
 
       {/* Charts row 1 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -399,8 +416,11 @@ export function ExecutiveDashboard() {
         </Card>
       </div>
 
+      {/* 3D Factory Floor Visualization */}
+      <FactoryFloor3D workOrders={data.workOrders || []} />
+
       {/* Recent Orders Table */}
-      <Card className="border-border bg-card p-5">
+      <Card className="glass border-border p-5 rounded-xl">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Recent Orders</h3>

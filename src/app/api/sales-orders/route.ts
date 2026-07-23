@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAuth, unauthorized, salesOrderSchema, logAudit } from "@/lib/api-helpers";
+import { cache } from "@/lib/cache";
+import { requireAuth, unauthorized, salesOrderSchema, logAudit, getTenantContext, checkPermission } from "@/lib/api-helpers";
 
 export async function GET(req: NextRequest) {
   const session = await requireAuth();
   if (!session) return unauthorized();
+  const { tenantId } = getTenantContext(session);
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
@@ -13,8 +15,9 @@ export async function GET(req: NextRequest) {
 
   const orders = await db.salesOrder.findMany({
     where: {
+      tenantId,
       AND: [
-        q ? { OR: [{ orderNumber: { contains: q } }] } : {},
+        q ? { orderNumber: { contains: q } } : {},
         status ? { status: status as any } : {},
         customerId ? { customerId } : {},
       ],
@@ -41,12 +44,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireAuth();
   if (!session) return unauthorized();
+  const { tenantId, userId } = getTenantContext(session);
+
+  const permErr = await checkPermission(session, "sales", "create");
+  if (permErr) return permErr;
 
   try {
     const body = await req.json();
     const data = salesOrderSchema.parse(body);
 
-    // Calculate totals
     const items = data.items.map((it) => ({
       productId: it.productId,
       quantity: it.quantity,
@@ -57,16 +63,16 @@ export async function POST(req: NextRequest) {
     const taxAmount = Math.round(subtotal * 0.05);
     const totalAmount = subtotal + taxAmount;
 
-    // Generate order number
-    const count = await db.salesOrder.count();
+    const count = await db.salesOrder.count({ where: { tenantId } });
     const orderNumber = `ORD-${String(2842 + count).padStart(4, "0")}`;
 
     const order = await db.salesOrder.create({
       data: {
+        tenantId,
         orderNumber,
         customerId: data.customerId,
         branchId: data.branchId || null,
-        salesRepId: (session.user as any).id,
+        salesRepId: userId,
         deliveryDate: data.deliveryDate ? new Date(data.deliveryDate) : null,
         paymentMethod: data.paymentMethod || null,
         notes: data.notes || null,
@@ -80,7 +86,9 @@ export async function POST(req: NextRequest) {
       include: { customer: true, items: { include: { product: true } } },
     });
 
-    await logAudit((session.user as any).id, "CREATE", "SalesOrder", order.id, `Created sales order ${order.orderNumber} for ${order.customer?.name}`);
+    await cache.invalidateEntity("sales", tenantId);
+    await cache.invalidateEntity("dashboard", tenantId);
+    await logAudit(tenantId, userId, "CREATE", "SalesOrder", order.id, `Created sales order ${order.orderNumber} for ${order.customer?.name}`, req);
     return NextResponse.json({ order }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "Failed to create sales order" }, { status: 400 });

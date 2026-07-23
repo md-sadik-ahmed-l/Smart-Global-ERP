@@ -1,5 +1,6 @@
-// Smart Global ERP — Production schema
+// Smart Global ERP — Enterprise-Grade Multi-Tenant Schema
 // Owner: Smart WebStudio (Mohammad Sayem)
+// Architecture: Multi-Tenant, Multi-Company, Multi-Branch, RBAC, 2FA, Audit, Manufacturing, Payroll
 
 generator client {
   provider = "prisma-client-js"
@@ -11,55 +12,69 @@ datasource db {
 }
 
 // ============================================================
-// AUTH & USERS
+// TENANT & ORGANIZATION (Multi-Tenant Architecture)
 // ============================================================
 
-model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String
-  passwordHash  String
-  role          UserRole  @default(STAFF)
-  phone         String?
-  avatar        String?
-  department    String?
-  designation   String?
-  status        UserStatus @default(ACTIVE)
-  branchId      String?
-  branch        Branch?   @relation(fields: [branchId], references: [id])
-  lastLoginAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  salesOrders       SalesOrder[]       @relation("salesRep")
-  purchaseOrders    PurchaseOrder[]    @relation("buyer")
-  stockAdjustments  StockAdjustment[]
-  auditLogs         AuditLog[]
-  notifications     Notification[]     @relation("recipient")
-}
-
-enum UserRole {
-  SUPER_ADMIN
-  CEO
-  MANAGER
-  STAFF
-  ACCOUNTANT
-}
-
-enum UserStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-}
-
-// ============================================================
-// ORGANIZATION
-// ============================================================
-
-model Branch {
+model Tenant {
   id          String   @id @default(cuid())
   name        String
   code        String   @unique
+  domain      String?
+  plan        String   @default("ENTERPRISE") // STARTER, BUSINESS, ENTERPRISE
+  status      String   @default("ACTIVE") // ACTIVE, SUSPENDED, TERMINATED
+  maxUsers    Int      @default(1000)
+  maxBranches Int      @default(100)
+  settings    String?  // JSON string for tenant-level settings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  companies   Company[]
+  branches    Branch[]
+  roles       Role[]
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String
+  code        String
+  legalName   String?
+  taxId       String?
+  regNumber   String?
+  address     String?
+  phone       String?
+  email       String?
+  website     String?
+  logoUrl     String?
+  fiscalYearStart String?
+  baseCurrency String  @default("BDT")
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branches    Branch[]
+  products    Product[]
+  customers   Customer[]
+  vendors     Vendor[]
+  salesOrders SalesOrder[]
+  purchaseOrders PurchaseOrder[]
+  boms        BOM[]
+  workOrders  WorkOrder[]
+  payrollRuns PayrollRun[]
+
+  @@unique([tenantId, code])
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  name        String
+  code        String
   address     String?
   phone       String?
   managerId   String?
@@ -67,26 +82,108 @@ model Branch {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([tenantId, code])
   users       User[]
   warehouses  Warehouse[]
   salesOrders SalesOrder[]
   purchaseOrders PurchaseOrder[]
+  workOrders  WorkOrder[]
+  employees   Employee[]
 }
 
 model Warehouse {
   id          String   @id @default(cuid())
-  name        String
-  code        String   @unique
+  tenantId    String
   branchId    String?
   branch      Branch?  @relation(fields: [branchId], references: [id])
+  name        String
+  code        String
   address     String?
-  capacity    Int      @default(1000)
+  capacity    Int      @default(10000)
   status      String   @default("active")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([tenantId, code])
   stockItems      StockItem[]
   stockAdjustments StockAdjustment[]
+  stockTransfersFrom StockTransfer[] @relation("fromTransfer")
+  stockTransfersTo   StockTransfer[] @relation("toTransfer")
+  batches         Batch[]
+}
+
+// ============================================================
+// AUTH, USERS & RBAC
+// ============================================================
+
+model User {
+  id            String    @id @default(cuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  email         String
+  name          String
+  passwordHash  String
+  role          String    @default("STAFF")
+  roleId        String?
+  roleRef       Role?     @relation(fields: [roleId], references: [id])
+  phone         String?
+  avatar        String?
+  department    String?
+  designation   String?
+  status        String    @default("ACTIVE")
+  branchId      String?
+  branch        Branch?   @relation(fields: [branchId], references: [id])
+  twoFactorSecret String?
+  twoFactorEnabled Boolean @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([tenantId, email])
+  salesOrders       SalesOrder[]
+  purchaseOrders    PurchaseOrder[]
+  stockAdjustments  StockAdjustment[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]     @relation("recipient")
+  workOrders        WorkOrder[]        @relation("supervisor")
+  productionLogs    ProductionLog[]
+  qcChecks          QCCheck[]
+  payrollRuns       PayrollRun[]       @relation("processedBy")
+  salarySlips       SalarySlip[]
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, name])
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  module      String   // e.g. "sales", "purchase", "inventory", "hr", "finance", "manufacturing"
+  action      String   // e.g. "view", "create", "update", "delete", "approve", "export"
+  description String?
+
+  @@unique([module, action])
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
 }
 
 // ============================================================
@@ -95,25 +192,33 @@ model Warehouse {
 
 model Category {
   id          String   @id @default(cuid())
-  name        String   @unique
+  tenantId    String
+  name        String
   description String?
+  parentId    String?
   createdAt   DateTime @default(now())
 
+  @@unique([tenantId, name])
   products    Product[]
 }
 
 model Brand {
   id          String   @id @default(cuid())
-  name        String   @unique
+  tenantId    String
+  name        String
   description String?
   createdAt   DateTime @default(now())
 
+  @@unique([tenantId, name])
   products    Product[]
 }
 
 model Product {
   id          String   @id @default(cuid())
-  sku         String   @unique
+  tenantId    String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  sku         String
   name        String
   description String?
   categoryId  String?
@@ -121,25 +226,28 @@ model Product {
   brandId     String?
   brand       Brand?    @relation(fields: [brandId], references: [id])
   unit        String   @default("pcs")
+  productType String   @default("FINISHED") // RAW, SEMI_FINISHED, FINISHED, SERVICE
   costPrice   Float    @default(0)
   salePrice   Float    @default(0)
   reorderLevel Int     @default(10)
   barcode     String?
+  qrCode      String?
   imageUrl    String?
-  status      ProductStatus @default(ACTIVE)
+  status      String   @default("ACTIVE")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([tenantId, sku])
   stockItems      StockItem[]
-  stockAdjustments StockAdjustment[]
   salesOrderItems SalesOrderItem[]
   purchaseOrderItems PurchaseOrderItem[]
-}
-
-enum ProductStatus {
-  ACTIVE
-  INACTIVE
-  DISCONTINUED
+  bomItems        BOMItem[]
+  workOrderItems  WorkOrderItem[]
+  stockAdjustments StockAdjustment[]
+  stockTransfers  StockTransfer[]
+  workOrders      WorkOrder[]
+  batches         Batch[]
+  serialNumbers   SerialNumber[]
 }
 
 // ============================================================
@@ -148,38 +256,32 @@ enum ProductStatus {
 
 model Customer {
   id          String   @id @default(cuid())
-  code        String   @unique
+  tenantId    String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  code        String
   name        String
   email       String?
   phone       String?
   address     String?
   country     String   @default("Bangladesh")
-  segment     CustomerSegment @default(SME)
+  segment     String   @default("SME")
   creditLimit Float    @default(0)
-  status      CustomerStatus @default(ACTIVE)
+  status      String   @default("ACTIVE")
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([tenantId, code])
   salesOrders SalesOrder[]
-}
-
-enum CustomerSegment {
-  ENTERPRISE
-  SME
-  RETAIL
-  VIP
-}
-
-enum CustomerStatus {
-  ACTIVE
-  INACTIVE
-  BLOCKED
 }
 
 model Vendor {
   id          String   @id @default(cuid())
-  code        String   @unique
+  tenantId    String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  code        String
   name        String
   contactPerson String?
   email       String?
@@ -190,19 +292,13 @@ model Vendor {
   creditDays  Int      @default(30)
   creditLimit Float    @default(0)
   rating      Float    @default(4.0)
-  status      VendorStatus @default(ACTIVE)
+  status      String   @default("ACTIVE")
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([tenantId, code])
   purchaseOrders PurchaseOrder[]
-}
-
-enum VendorStatus {
-  ACTIVE
-  INACTIVE
-  PENDING
-  BLOCKED
 }
 
 // ============================================================
@@ -211,13 +307,16 @@ enum VendorStatus {
 
 model SalesOrder {
   id          String   @id @default(cuid())
-  orderNumber String   @unique
+  tenantId    String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  orderNumber String
   customerId  String
   customer    Customer @relation(fields: [customerId], references: [id])
   branchId    String?
   branch      Branch?  @relation(fields: [branchId], references: [id])
   salesRepId  String?
-  salesRep    User?    @relation("salesRep", fields: [salesRepId], references: [id])
+  salesRep    User?    @relation(fields: [salesRepId], references: [id])
   orderDate   DateTime @default(now())
   deliveryDate DateTime?
   subtotal    Float    @default(0)
@@ -226,21 +325,13 @@ model SalesOrder {
   totalAmount Float    @default(0)
   paidAmount  Float    @default(0)
   paymentMethod String?
-  status      SalesOrderStatus @default(PENDING)
+  status      String   @default("PENDING")
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([tenantId, orderNumber])
   items       SalesOrderItem[]
-}
-
-enum SalesOrderStatus {
-  PENDING
-  PROCESSING
-  SHIPPED
-  COMPLETED
-  CANCELLED
-  RETURNED
 }
 
 model SalesOrderItem {
@@ -260,40 +351,30 @@ model SalesOrderItem {
 
 model PurchaseOrder {
   id          String   @id @default(cuid())
-  poNumber    String   @unique
+  tenantId    String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  poNumber    String
   vendorId    String
   vendor      Vendor   @relation(fields: [vendorId], references: [id])
   branchId    String?
   branch      Branch?  @relation(fields: [branchId], references: [id])
   buyerId     String?
-  buyer       User?    @relation("buyer", fields: [buyerId], references: [id])
+  buyer       User?    @relation(fields: [buyerId], references: [id])
   orderDate   DateTime @default(now())
   expectedDate DateTime?
   subtotal    Float    @default(0)
   taxAmount   Float    @default(0)
   totalAmount Float    @default(0)
   paidAmount  Float    @default(0)
-  grnStatus   GrnStatus @default(PENDING)
-  status      PurchaseOrderStatus @default(PENDING)
+  grnStatus   String   @default("PENDING")
+  status      String   @default("PENDING")
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([tenantId, poNumber])
   items       PurchaseOrderItem[]
-}
-
-enum PurchaseOrderStatus {
-  PENDING
-  APPROVED
-  SHIPPED
-  RECEIVED
-  CANCELLED
-}
-
-enum GrnStatus {
-  PENDING
-  PARTIAL
-  COMPLETED
 }
 
 model PurchaseOrderItem {
@@ -308,45 +389,332 @@ model PurchaseOrderItem {
 }
 
 // ============================================================
-// INVENTORY
+// INVENTORY (Batch, Serial, Valuation)
 // ============================================================
 
 model StockItem {
   id          String   @id @default(cuid())
+  tenantId    String
   productId   String
   product     Product  @relation(fields: [productId], references: [id])
   warehouseId String
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
   quantity    Int      @default(0)
-  batchNumber String?
-  expiryDate  DateTime?
+  batchId     String?
+  batch       Batch?   @relation(fields: [batchId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
+model Batch {
+  id          String   @id @default(cuid())
+  tenantId    String
+  batchNumber String
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  quantity    Int      @default(0)
+  manufacturingDate DateTime?
+  expiryDate  DateTime?
+  costPrice   Float    @default(0)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, batchNumber])
+  stockItems  StockItem[]
+  serialNumbers SerialNumber[]
+}
+
+model SerialNumber {
+  id          String   @id @default(cuid())
+  tenantId    String
+  serialNo    String
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  batchId     String?
+  batch       Batch?   @relation(fields: [batchId], references: [id])
+  warehouseId String?
+  status      String   @default("IN_STOCK") // IN_STOCK, SOLD, DAMAGED, RETURNED
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, serialNo])
+}
+
 model StockAdjustment {
   id          String   @id @default(cuid())
+  tenantId    String
   productId   String
   product     Product  @relation(fields: [productId], references: [id])
   warehouseId String
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
   adjustedBy  String
   user        User     @relation(fields: [adjustedBy], references: [id])
-  adjustmentType String // IN, OUT, TRANSFER, DAMAGE, RETURN
+  adjustmentType String
   quantity    Int
   reason      String?
   createdAt   DateTime @default(now())
 }
 
+model StockTransfer {
+  id          String   @id @default(cuid())
+  tenantId    String
+  transferNumber String
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  fromWarehouseId String
+  fromWarehouse Warehouse @relation("fromTransfer", fields: [fromWarehouseId], references: [id])
+  toWarehouseId String
+  toWarehouse   Warehouse @relation("toTransfer", fields: [toWarehouseId], references: [id])
+  quantity    Int
+  status      String   @default("PENDING") // PENDING, IN_TRANSIT, COMPLETED, CANCELLED
+  transferDate DateTime @default(now())
+  receivedDate DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+}
+
 // ============================================================
-// SYSTEM
+// MANUFACTURING (BOM, Work Orders, Production, QC)
+// ============================================================
+
+model BOM {
+  id          String   @id @default(cuid())
+  tenantId    String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  bomNumber   String
+  name        String
+  productId   String   // finished product
+  quantity    Float    @default(1)
+  unit        String   @default("pcs")
+  status      String   @default("ACTIVE")
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, bomNumber])
+  items       BOMItem[]
+  workOrders  WorkOrder[]
+}
+
+model BOMItem {
+  id          String   @id @default(cuid())
+  bomId       String
+  bom         BOM      @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  quantity    Float
+  unit        String
+  isOptional  Boolean  @default(false)
+}
+
+model WorkOrder {
+  id          String   @id @default(cuid())
+  tenantId    String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  woNumber    String
+  bomId       String?
+  bom         BOM?     @relation(fields: [bomId], references: [id])
+  productId   String   // product to manufacture
+  product     Product  @relation(fields: [productId], references: [id])
+  branchId    String?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  supervisorId String?
+  supervisor  User?    @relation("supervisor", fields: [supervisorId], references: [id])
+  plannedQty  Float
+  producedQty Float    @default(0)
+  rejectedQty Float    @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  plannedEndDate DateTime?
+  status      String   @default("CREATED") // CREATED, RELEASED, IN_PROGRESS, QC, COMPLETED, CANCELLED
+  priority    String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  costCenter  String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, woNumber])
+  items       WorkOrderItem[]
+  productionLogs ProductionLog[]
+  qcChecks    QCCheck[]
+}
+
+model WorkOrderItem {
+  id          String   @id @default(cuid())
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  requiredQty Float
+  issuedQty   Float    @default(0)
+  unit        String
+}
+
+model ProductionLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  operatorId  String?
+  operator    User?    @relation(fields: [operatorId], references: [id])
+  producedQty Float
+  rejectedQty Float    @default(0)
+  shift       String?
+  station     String?
+  logTime     DateTime @default(now())
+  notes       String?
+}
+
+model QCCheck {
+  id          String   @id @default(cuid())
+  tenantId    String
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  inspectorId String?
+  inspector   User?    @relation(fields: [inspectorId], references: [id])
+  checkType   String   // INLINE, FINAL, PRE_SHIPMENT
+  sampleSize  Int
+  passedQty   Int
+  failedQty   Int
+  defectType  String?
+  status      String   @default("PASSED") // PASSED, FAILED, REWORK
+  notes       String?
+  checkedAt   DateTime @default(now())
+}
+
+// ============================================================
+// HR & PAYROLL
+// ============================================================
+
+model Employee {
+  id          String   @id @default(cuid())
+  tenantId    String
+  employeeCode String
+  userId      String?
+  name        String
+  email       String?
+  phone       String?
+  department  String?
+  designation String?
+  branchId    String?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  joinDate    DateTime
+  exitDate    DateTime?
+  status      String   @default("ACTIVE")
+  salaryStructureId String?
+  salaryStructure SalaryStructure? @relation(fields: [salaryStructureId], references: [id])
+  bankAccount String?
+  bankName    String?
+  nidNumber   String?  // National ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, employeeCode])
+  salarySlips SalarySlip[]
+  attendanceRecords Attendance[]
+}
+
+model SalaryStructure {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  basicSalary Float
+  houseRent   Float    @default(0)
+  medicalAllowance Float @default(0)
+  conveyance Float    @default(0)
+  foodAllowance Float  @default(0)
+  specialAllowance Float @default(0)
+  providentFund Float  @default(0)
+  taxPercent  Float    @default(0)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, name])
+  employees   Employee[]
+}
+
+model Attendance {
+  id          String   @id @default(cuid())
+  tenantId    String
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  date        DateTime
+  checkIn     DateTime?
+  checkOut    DateTime?
+  status      String   @default("PRESENT") // PRESENT, ABSENT, LATE, HALF_DAY, LEAVE, HOLIDAY
+  workHours   Float    @default(0)
+  overtime    Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, employeeId, date])
+}
+
+model PayrollRun {
+  id          String   @id @default(cuid())
+  tenantId    String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  runNumber   String
+  month       Int
+  year        Int
+  totalEmployees Int    @default(0)
+  totalGross  Float    @default(0)
+  totalNet    Float    @default(0)
+  totalTax    Float    @default(0)
+  status      String   @default("DRAFT") // DRAFT, PROCESSED, APPROVED, PAID
+  processedById String?
+  processedBy User?    @relation("processedBy", fields: [processedById], references: [id])
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, runNumber])
+  salarySlips SalarySlip[]
+}
+
+model SalarySlip {
+  id          String   @id @default(cuid())
+  tenantId    String
+  payrollRunId String?
+  payrollRun  PayrollRun? @relation(fields: [payrollRunId], references: [id])
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  slipNumber  String
+  month       Int
+  year        Int
+  basicSalary Float
+  grossSalary Float
+  totalAllowances Float
+  totalDeductions Float
+  taxAmount   Float
+  netSalary   Float
+  presentDays Int      @default(0)
+  absentDays  Int      @default(0)
+  leaveDays   Int      @default(0)
+  overtimeHours Float  @default(0)
+  overtimeAmount Float @default(0)
+  status      String   @default("GENERATED") // GENERATED, APPROVED, PAID
+  generatedById String?
+  generatedBy User?    @relation(fields: [generatedById], references: [id])
+  paidAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, slipNumber])
+}
+
+// ============================================================
+// SYSTEM (Notifications, Audit, Jobs, Webhooks)
 // ============================================================
 
 model Notification {
   id          String   @id @default(cuid())
+  tenantId    String
   recipientId String
   recipient   User     @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  type        String   // info, success, warning, error
+  type        String
   title       String
   message     String
   isRead      Boolean  @default(false)
@@ -355,12 +723,42 @@ model Notification {
 
 model AuditLog {
   id          String   @id @default(cuid())
+  tenantId    String?
   userId      String?
   user        User?    @relation(fields: [userId], references: [id])
-  action      String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
-  entity      String   // Customer, Vendor, Product, etc.
+  action      String
+  entity      String
   entityId    String?
   details     String?
   ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  type        String   // e.g. "payroll_run", "report_generate", "backup", "email_send"
+  payload     String   // JSON
+  status      String   @default("QUEUED") // QUEUED, PROCESSING, COMPLETED, FAILED
+  priority    Int      @default(0)
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(3)
+  result      String?
+  error       String?
+  scheduledAt DateTime @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Webhook {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  url         String
+  events      String   // JSON array of event types
+  secret      String?
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 }

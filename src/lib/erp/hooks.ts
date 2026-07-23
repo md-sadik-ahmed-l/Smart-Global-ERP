@@ -367,3 +367,132 @@ export function useMarkAllRead() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
 }
+
+// ==================== MANUFACTURING ====================
+export function useBOMs() {
+  return useQuery({
+    queryKey: ["boms"],
+    queryFn: async () => {
+      const res = await fetch("/api/manufacturing/boms");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+}
+
+export function useWorkOrders(status?: string) {
+  const qs = new URLSearchParams();
+  if (status) qs.set("status", status);
+  return useQuery({
+    queryKey: ["work-orders", status],
+    queryFn: async () => {
+      const res = await fetch(`/api/manufacturing/work-orders?${qs.toString()}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    refetchInterval: 30 * 1000,
+  });
+}
+
+export function useWorkOrderAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const method = data.action && ["release", "complete", "cancel"].includes(data.action) ? "PUT" : "POST";
+      const res = await fetch("/api/manufacturing/work-orders", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["work-orders"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      toast.success("Work order updated");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ==================== PAYROLL ====================
+export function usePayrollRuns() {
+  return useQuery({
+    queryKey: ["payroll-runs"],
+    queryFn: async () => {
+      const res = await fetch("/api/payroll/runs");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+}
+
+export function useSalarySlips(params: { month?: number; year?: number; employeeId?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.month) qs.set("month", String(params.month));
+  if (params.year) qs.set("year", String(params.year));
+  if (params.employeeId) qs.set("employeeId", params.employeeId);
+  return useQuery({
+    queryKey: ["salary-slips", params],
+    queryFn: async () => {
+      const res = await fetch(`/api/payroll/slips?${qs.toString()}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+}
+
+export function useRunPayroll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { month: number; year: number }) => {
+      const res = await fetch("/api/payroll/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["payroll-runs"] });
+      qc.invalidateQueries({ queryKey: ["salary-slips"] });
+      toast.success("Payroll run completed — salary slips generated");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ==================== EMPLOYEES ====================
+export function useEmployees(department?: string) {
+  const qs = new URLSearchParams();
+  if (department) qs.set("department", department);
+  return useQuery({
+    queryKey: ["employees", department],
+    queryFn: async () => {
+      const res = await fetch(`/api/employees?${qs.toString()}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+}
+
+// ==================== SYSTEM ====================
+export function useSystemStats() {
+  return useQuery({
+    queryKey: ["system-stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/system/stats");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    refetchInterval: 15 * 1000,
+  });
+}

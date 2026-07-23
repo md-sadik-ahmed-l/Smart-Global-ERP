@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAuth, unauthorized, purchaseOrderSchema, logAudit } from "@/lib/api-helpers";
+import { cache } from "@/lib/cache";
+import { requireAuth, unauthorized, purchaseOrderSchema, logAudit, getTenantContext, checkPermission } from "@/lib/api-helpers";
 
 export async function GET(req: NextRequest) {
   const session = await requireAuth();
   if (!session) return unauthorized();
+  const { tenantId } = getTenantContext(session);
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
@@ -13,8 +15,9 @@ export async function GET(req: NextRequest) {
 
   const orders = await db.purchaseOrder.findMany({
     where: {
+      tenantId,
       AND: [
-        q ? { OR: [{ poNumber: { contains: q } }] } : {},
+        q ? { poNumber: { contains: q } } : {},
         status ? { status: status as any } : {},
         vendorId ? { vendorId } : {},
       ],
@@ -41,6 +44,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireAuth();
   if (!session) return unauthorized();
+  const { tenantId, userId } = getTenantContext(session);
+
+  const permErr = await checkPermission(session, "purchase", "create");
+  if (permErr) return permErr;
 
   try {
     const body = await req.json();
@@ -56,15 +63,16 @@ export async function POST(req: NextRequest) {
     const taxAmount = Math.round(subtotal * 0.05);
     const totalAmount = subtotal + taxAmount;
 
-    const count = await db.purchaseOrder.count();
+    const count = await db.purchaseOrder.count({ where: { tenantId } });
     const poNumber = `PO-${String(1249 + count).padStart(4, "0")}`;
 
     const order = await db.purchaseOrder.create({
       data: {
+        tenantId,
         poNumber,
         vendorId: data.vendorId,
         branchId: data.branchId || null,
-        buyerId: (session.user as any).id,
+        buyerId: userId,
         expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
         notes: data.notes || null,
         subtotal,
@@ -78,7 +86,8 @@ export async function POST(req: NextRequest) {
       include: { vendor: true, items: { include: { product: true } } },
     });
 
-    await logAudit((session.user as any).id, "CREATE", "PurchaseOrder", order.id, `Created PO ${order.poNumber} for ${order.vendor?.name}`);
+    await cache.invalidateEntity("purchase", tenantId);
+    await logAudit(tenantId, userId, "CREATE", "PurchaseOrder", order.id, `Created PO ${order.poNumber} for ${order.vendor?.name}`, req);
     return NextResponse.json({ order }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "Failed to create purchase order" }, { status: 400 });

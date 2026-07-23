@@ -32,6 +32,7 @@ export interface ModuleDef {
     | "hr"
     | "finance"
     | "reports"
+    | "manufacturing"
     | "generic";
 }
 
@@ -224,7 +225,7 @@ export const MODULES: ModuleDef[] = [
     category: "Operations",
     icon: "Factory",
     description: "Production planning, BOM, work orders, machine & labour allocation",
-    variant: "generic",
+    variant: "manufacturing",
     features: [
       "Production Planning", "Bill of Materials (BOM)", "Work Orders", "Production Schedule",
       "Machine Allocation", "Labour Allocation", "Material Requirement Planning", "Production Costing",

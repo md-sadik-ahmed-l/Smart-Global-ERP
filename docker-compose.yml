@@ -1,0 +1,164 @@
+# Smart Global ERP — Docker Compose for Production
+# Includes: ERP app, PostgreSQL, Redis, Realtime WebSocket service, Nginx Load Balancer
+
+version: "3.9"
+
+services:
+  # ============================================================
+  # PostgreSQL Database (Production)
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: erp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smart_global_erp
+      POSTGRES_USER: erp_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_admin -d smart_global_erp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - erp-network
+
+  # ============================================================
+  # Redis Cache (Caching + Session store + Queue)
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: erp-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - erp-network
+
+  # ============================================================
+  # Smart Global ERP — Main Application
+  # ============================================================
+  erp-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erp-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      erp-realtime:
+        condition: service_started
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://erp_admin:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/smart_global_erp?schema=public
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-generate_with_openssl_rand_base64_32}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost}
+      - REALTIME_SERVICE_URL=http://erp-realtime:3003
+    ports:
+      - "3000:3000"
+    volumes:
+      - erp_uploads:/app/uploads
+      - erp_backups:/app/backups
+    networks:
+      - erp-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  # ============================================================
+  # Realtime WebSocket Service (Live notifications + Dashboard)
+  # ============================================================
+  erp-realtime:
+    build:
+      context: ./mini-services/realtime-service
+      dockerfile: Dockerfile
+    container_name: erp-realtime
+    restart: unless-stopped
+    environment:
+      - PORT=3003
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3003:3003"
+    networks:
+      - erp-network
+
+  # ============================================================
+  # Nginx Load Balancer (Reverse proxy + SSL termination)
+  # ============================================================
+  nginx:
+    image: nginx:alpine
+    container_name: erp-nginx
+    restart: unless-stopped
+    depends_on:
+      - erp-app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - erp-network
+
+  # ============================================================
+  # Background Worker (Job queue processor)
+  # ============================================================
+  erp-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: erp-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://erp_admin:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/smart_global_erp?schema=public
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - erp-network
+    deploy:
+      replicas: 2
+
+volumes:
+  postgres_data:
+  redis_data:
+  erp_uploads:
+  erp_backups:
+
+networks:
+  erp-network:
+    driver: bridge

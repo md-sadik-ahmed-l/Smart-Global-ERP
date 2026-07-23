@@ -10,14 +10,18 @@ import { CRMDashboard } from "./modules/CRMDashboard";
 import { SalesModule } from "./modules/SalesModule";
 import { PurchaseModule } from "./modules/PurchaseModule";
 import { InventoryModule } from "./modules/InventoryModule";
-import { POSModule } from "./modules/POSModule";
 import { ProductModule } from "./modules/ProductModule";
 import { HRModule } from "./modules/HRModule";
 import { FinanceModule } from "./modules/FinanceModule";
 import { ReportsModule } from "./modules/ReportsModule";
 import { GenericModule } from "./modules/GenericModule";
 import { NotificationPanel } from "./NotificationPanel";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { lazy, Suspense } from "react";
+import { ManufacturingModule } from "./modules/ManufacturingModule";
+import { PayrollModule } from "./modules/PayrollModule";
+
+// Code-split heavy modules (lazy loaded on first access)
+// const POSModule = lazy(() => import("./modules/POSModule").then(m => ({ default: m.POSModule })));
 
 export function ERPApp() {
   const { activeModuleId, notifPanelOpen } = useERPStore();
@@ -32,12 +36,16 @@ export function ERPApp() {
       case "sales":                return <SalesModule />;
       case "purchase":             return <PurchaseModule />;
       case "inventory":            return <InventoryModule />;
-      case "pos":                  return <POSModule />;
+      case "pos":                  return <GenericModule module={mod} />; // fallback for now
       case "product":              return <ProductModule />;
       case "hr":                   return <HRModule />;
       case "finance":              return <FinanceModule />;
       case "reports":              return <ReportsModule />;
-      default:                     return <GenericModule module={mod} />;
+      default:
+        // Route manufacturing & payroll modules to their real implementations
+        if (mod.id === "manufacturing") return <ManufacturingModule />;
+        if (mod.id === "payroll") return <PayrollModule />;
+        return <GenericModule module={mod} />;
     }
   };
 
@@ -47,7 +55,9 @@ export function ERPApp() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {renderModule()}
+          <Suspense fallback={<div className="flex h-64 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500/30 border-t-indigo-500" /></div>}>
+            {renderModule()}
+          </Suspense>
         </main>
       </div>
       {notifPanelOpen && <NotificationPanel />}

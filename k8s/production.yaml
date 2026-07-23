@@ -1,0 +1,220 @@
+# Smart Global ERP — Kubernetes Production Deployment
+# Supports: Auto-scaling (3-20 pods), Load balancing, Health checks, Rolling updates, SSL
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: smart-erp
+  labels:
+    app: smart-global-erp
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: erp-config
+  namespace: smart-erp
+data:
+  NODE_ENV: "production"
+  NEXTAUTH_URL: "https://erp.smartwebstudio.com"
+  REALTIME_SERVICE_URL: "http://erp-realtime:3003"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: erp-secrets
+  namespace: smart-erp
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://erp_admin:CHANGE_ME@postgres:5432/smart_global_erp?schema=public"
+  REDIS_URL: "redis://redis:6379"
+  NEXTAUTH_SECRET: "CHANGE_ME_WITH_OPENSSL_RAND_BASE64_32"
+
+---
+# PostgreSQL StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: smart-erp
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: smart_global_erp
+            - name: POSTGRES_USER
+              value: erp_admin
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: erp-secrets
+                  key: DATABASE_URL
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests: { memory: "512Mi", cpu: "250m" }
+            limits: { memory: "2Gi", cpu: "1000m" }
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 50Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: smart-erp
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
+  clusterIP: None
+
+---
+# Redis
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: smart-erp
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: redis } }
+  template:
+    metadata: { labels: { app: redis } }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb"]
+          ports: [{ containerPort: 6379 }]
+          resources:
+            requests: { memory: "128Mi", cpu: "100m" }
+            limits: { memory: "512Mi", cpu: "500m" }
+
+---
+apiVersion: v1
+kind: Service
+metadata: { name: redis, namespace: smart-erp }
+spec:
+  selector: { app: redis }
+  ports: [{ port: 6379, targetPort: 6379 }]
+
+---
+# Smart Global ERP App — Auto-scaling Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp-app
+  namespace: smart-erp
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector: { matchLabels: { app: smart-global-erp } }
+  template:
+    metadata: { labels: { app: smart-global-erp } }
+    spec:
+      containers:
+        - name: erp-app
+          image: smartwebstudio/smart-global-erp:latest
+          ports: [{ containerPort: 3000 }]
+          envFrom:
+            - configMapRef: { name: erp-config }
+            - secretRef: { name: erp-secrets }
+          resources:
+            requests: { memory: "512Mi", cpu: "250m" }
+            limits: { memory: "2Gi", cpu: "1000m" }
+          livenessProbe:
+            httpGet: { path: /api/system/health, port: 3000 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /api/system/health, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata: { name: erp-app, namespace: smart-erp }
+spec:
+  selector: { app: smart-global-erp }
+  ports: [{ port: 80, targetPort: 3000 }]
+  type: ClusterIP
+
+---
+# Horizontal Pod Autoscaler (3-20 pods based on CPU/Memory)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: erp-app-hpa, namespace: smart-erp }
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: erp-app
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+    - type: Resource
+      resource:
+        name: memory
+        target: { type: Utilization, averageUtilization: 80 }
+
+---
+# Ingress with SSL
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: erp-ingress
+  namespace: smart-erp
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+spec:
+  tls:
+    - hosts: [erp.smartwebstudio.com]
+      secretName: erp-tls-secret
+  rules:
+    - host: erp.smartwebstudio.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: erp-app, port: { number: 80 } }
+
+---
+# Pod Disruption Budget (high availability)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: erp-app-pdb, namespace: smart-erp }
+spec:
+  minAvailable: 2
+  selector: { matchLabels: { app: smart-global-erp } }
