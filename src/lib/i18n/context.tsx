@@ -18,15 +18,14 @@ const I18nContext = createContext<I18nContextType>({
   dir: "ltr",
 });
 
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<LanguageCode>("en");
+function getInitialLang(): LanguageCode {
+  if (typeof window === "undefined") return "en";
+  const saved = localStorage.getItem("erp-lang") as LanguageCode;
+  return saved && translations[saved] ? saved : "en";
+}
 
-  useEffect(() => {
-    const saved = localStorage.getItem("erp-lang") as LanguageCode;
-    if (saved && translations[saved]) {
-      setLangState(saved);
-    }
-  }, []);
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<LanguageCode>(getInitialLang);
 
   useEffect(() => {
     const language = getLanguage(lang);

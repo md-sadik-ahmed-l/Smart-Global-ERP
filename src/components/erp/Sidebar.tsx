@@ -163,7 +163,7 @@ export function Sidebar() {
                               isActive ? "text-indigo-400" : "text-muted-foreground group-hover:text-foreground"
                             )}
                           />
-                          <span className="truncate">{mod.shortName ?? mod.name}</span>
+                          <span className="truncate">{t(moduleTranslationKeys[mod.id] || ("mod_executive_dashboard" as TranslationKey))}</span>
                           {mod.number === 1 && (
                             <Crown className="ml-auto h-3.5 w-3.5 text-amber-400" />
                           )}
