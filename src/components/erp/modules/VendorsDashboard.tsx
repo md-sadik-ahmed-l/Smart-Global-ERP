@@ -243,6 +243,7 @@ export function VendorsDashboard() {
         showSearch
         showFilters
         showExport
+        exportType="vendors"
         showAdd
         addLabel="Add Vendor"
         onAdd={() => setShowAddModal(true)}

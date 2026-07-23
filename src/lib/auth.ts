@@ -19,6 +19,15 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email and password are required");
         }
 
+        // Rate limiting: prevent brute force attacks
+        // (Note: in production with Redis, use distributed rate limiter)
+        const { authLimiter } = await import("./rate-limit");
+        const clientKey = `auth:${credentials.email.toLowerCase()}`;
+        const limit = authLimiter.check(clientKey);
+        if (!limit.allowed) {
+          throw new Error("Too many login attempts. Please try again in 1 minute.");
+        }
+
         const user = await db.user.findFirst({
           where: { email: credentials.email.toLowerCase(), status: "ACTIVE" },
           include: { tenant: true },

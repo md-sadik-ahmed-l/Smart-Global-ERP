@@ -1,0 +1,146 @@
+# Smart Global ERP — Kubernetes Deployment
+# Production-grade: 3 replicas, HPA, health checks, secrets, configmaps
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: smart-erp
+---
+# ============ Secrets ============
+apiVersion: v1
+kind: Secret
+metadata:
+  name: erp-secrets
+  namespace: smart-erp
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://erp_user:CHANGE_ME@postgres-service:5432/smart_erp?schema=public"
+  NEXTAUTH_SECRET: "CHANGE_ME_TO_RANDOM_STRING"
+  NEXTAUTH_URL: "https://erp.smartwebstudio.com"
+  REDIS_URL: "redis://redis-service:6379"
+---
+# ============ ConfigMap ============
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: erp-config
+  namespace: smart-erp
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+---
+# ============ ERP Deployment ============
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp
+  namespace: smart-erp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: erp
+  template:
+    metadata:
+      labels:
+        app: erp
+    spec:
+      containers:
+        - name: erp
+          image: smartwebstudio/erp:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: erp-secrets
+            - configMapRef:
+                name: erp-config
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+---
+# ============ ERP Service ============
+apiVersion: v1
+kind: Service
+metadata:
+  name: erp-service
+  namespace: smart-erp
+spec:
+  selector:
+    app: erp
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: ClusterIP
+---
+# ============ Horizontal Pod Autoscaler ============
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: erp-hpa
+  namespace: smart-erp
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: erp
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# ============ Ingress (SSL + Load Balancer) ============
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: erp-ingress
+  namespace: smart-erp
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - erp.smartwebstudio.com
+      secretName: erp-tls
+  rules:
+    - host: erp.smartwebstudio.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: erp-service
+                port:
+                  number: 80

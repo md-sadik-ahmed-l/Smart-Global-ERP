@@ -138,6 +138,7 @@ export function InventoryModule() {
         iconColor="#10b981"
         showSearch
         showExport
+        exportType="inventory"
         showAdd
         addLabel="Stock Adjustment"
         onAdd={() => setShowAdjustModal(true)}

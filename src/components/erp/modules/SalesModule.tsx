@@ -126,6 +126,7 @@ export function SalesModule() {
         iconColor="#3b82f6"
         showSearch
         showExport
+        exportType="sales-orders"
         showAdd
         addLabel="New Sales Order"
         onAdd={() => setShowAddModal(true)}

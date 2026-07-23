@@ -6,6 +6,7 @@ import { useNotifications } from "@/lib/erp/hooks";
 import { COMPANY } from "@/lib/erp/demo-data";
 import { Button } from "@/components/ui/button";
 import { getModuleById } from "@/lib/erp/modules";
+import { GlobalSearch } from "./GlobalSearch";
 import {
   Search, Bell, Menu, Sun, Moon, Globe, ChevronDown,
   Crown, Settings, LogOut, User, MessageSquare, HelpCircle,
@@ -15,14 +16,12 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
 
 export function Header() {
   const { data: session } = useSession();
   const { activeModuleId, toggleSidebar, theme, toggleTheme, notifPanelOpen, setNotifPanelOpen } = useERPStore();
   const { data: notifData } = useNotifications();
   const activeModule = getModuleById(activeModuleId);
-  const [query, setQuery] = useState("");
 
   const user = session?.user as any;
   const userName = user?.name || "User";
@@ -55,18 +54,9 @@ export function Header() {
         </div>
       </div>
 
-      {/* Center: search */}
-      <div className="relative hidden flex-1 max-w-md lg:block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search modules, customers, orders, products..."
-          className="h-9 border-border bg-card pl-9 text-sm placeholder:text-muted-foreground"
-        />
-        <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground xl:block">
-          ⌘K
-        </kbd>
+      {/* Center: global search */}
+      <div className="hidden flex-1 max-w-md lg:block">
+        <GlobalSearch />
       </div>
 
       {/* Right: actions */}

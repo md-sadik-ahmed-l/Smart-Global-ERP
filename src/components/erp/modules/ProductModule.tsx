@@ -104,6 +104,7 @@ export function ProductModule() {
         iconColor="#3b82f6"
         showSearch
         showExport
+        exportType="products"
         showAdd
         addLabel="New Product"
         onAdd={() => setShowAddModal(true)}

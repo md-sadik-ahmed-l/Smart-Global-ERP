@@ -110,6 +110,7 @@ export function PurchaseModule() {
         iconColor="#8b5cf6"
         showSearch
         showExport
+        exportType="purchase-orders"
         showAdd
         addLabel="New Purchase Order"
         onAdd={() => setShowAddModal(true)}

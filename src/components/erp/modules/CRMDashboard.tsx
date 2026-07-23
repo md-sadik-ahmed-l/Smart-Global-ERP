@@ -133,6 +133,7 @@ export function CRMDashboard() {
         iconColor="#3b82f6"
         showSearch
         showExport
+        exportType="customers"
         showAdd
         addLabel="New Customer"
         onAdd={() => setShowAddModal(true)}
