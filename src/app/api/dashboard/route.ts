@@ -4,11 +4,15 @@ import { requireAuth, unauthorized, getTenantContext } from "@/lib/api-helpers";
 
 // GET /api/dashboard — tenant-scoped executive KPIs (simplified for performance)
 export async function GET() {
-  const session = await requireAuth();
-  if (!session) return unauthorized();
-  const { tenantId } = getTenantContext(session);
-
   try {
+    const session = await requireAuth();
+    if (!session) return unauthorized();
+    const { tenantId } = getTenantContext(session);
+
+    if (!tenantId) {
+      return NextResponse.json({ error: "No tenant found for this user" }, { status: 400 });
+    }
+
     // Run essential queries in parallel (kept minimal to avoid OOM)
     const [
       revenueAgg, totalOrders, totalCustomers, totalProducts,
@@ -21,12 +25,12 @@ export async function GET() {
       db.product.count({ where: { tenantId } }),
       db.employee.count({ where: { tenantId, status: "ACTIVE" } }),
       db.vendor.count({ where: { tenantId } }),
-      db.stockItem.findMany({ where: { tenantId }, select: { quantity: true, product: { select: { costPrice: true } } } }),
-      db.salesOrder.findMany({ where: { tenantId }, take: 7, orderBy: { orderDate: "desc" }, include: { customer: { select: { name: true } } } }),
-      db.branch.findMany({ where: { tenantId }, include: { _count: { select: { employees: true } }, salesOrders: { select: { totalAmount: true } } } }),
+      db.stockItem.findMany({ where: { tenantId }, select: { quantity: true, productId: true, product: { select: { costPrice: true } } } }),
+      db.salesOrder.findMany({ where: { tenantId }, take: 7, orderBy: { orderDate: "desc" }, include: { customer: true } }),
+      db.branch.findMany({ where: { tenantId }, include: { employees: true, users: true, warehouses: true, salesOrders: true } }),
       db.notification.findMany({ where: { tenantId }, take: 8, orderBy: { createdAt: "desc" } }),
       db.workOrder.count({ where: { tenantId, status: "IN_PROGRESS" } }),
-      db.workOrder.findMany({ where: { tenantId, status: "IN_PROGRESS" }, include: { product: { select: { name: true } } }, take: 5 }),
+      db.workOrder.findMany({ where: { tenantId, status: "IN_PROGRESS" }, include: { supervisor: true, product: true }, take: 5 }),
     ]);
 
     const expenseAgg = await db.purchaseOrder.aggregate({ _sum: { totalAmount: true }, where: { tenantId } });
@@ -34,9 +38,13 @@ export async function GET() {
     const totalRevenue = revenueAgg._sum.totalAmount || 0;
     const totalExpenses = expenseAgg._sum.totalAmount || 0;
     const netProfit = totalRevenue - totalExpenses;
-    const stockValue = stockItems.reduce((s, si) => s + si.quantity * si.product.costPrice, 0);
-    const lowStockCount = stockItems.filter((si) => si.quantity > 0 && si.quantity < 10).length;
-    const outOfStockCount = stockItems.filter((si) => si.quantity === 0).length;
+    const stockItemsWithCost = stockItems.map((si) => {
+      const cost = si.product?.costPrice ?? 0;
+      return { ...si, productCost: cost };
+    });
+    const stockValue = stockItemsWithCost.reduce((s, si) => s + si.quantity * si.productCost, 0);
+    const lowStockCount = stockItemsWithCost.filter((si) => si.quantity > 0 && si.quantity < 10).length;
+    const outOfStockCount = stockItemsWithCost.filter((si) => si.quantity === 0).length;
 
     // Monthly revenue (single query, group in memory)
     const now = new Date();
@@ -62,7 +70,6 @@ export async function GET() {
 
       const monthOrders = allOrders.filter((o) => o.orderDate >= start && o.orderDate < end);
       const rev = monthOrders.reduce((s, o) => s + o.totalAmount, 0);
-      const paid = monthOrders.reduce((s, o) => s + o.paidAmount, 0);
 
       revenueTrend.push({
         month: start.toLocaleString("en", { month: "short" }),
@@ -101,13 +108,13 @@ export async function GET() {
       branch: b.name,
       revenue: b.salesOrders.reduce((s, o) => s + o.totalAmount, 0),
       target: Math.round(b.salesOrders.reduce((s, o) => s + o.totalAmount, 0) * 1.15),
-      employees: b._count.employees,
+      employees: b.employees?.length || 0,
       status: b.status,
     }));
 
     const recentOrdersEnriched = recentOrders.map((o) => ({
       id: o.orderNumber,
-      customer: o.customer?.name || "—",
+      customer: typeof o.customer === 'object' && o.customer !== null ? o.customer.name : "—",
       amount: o.totalAmount,
       status: o.status,
       date: o.orderDate.toISOString().slice(0, 10),
@@ -124,7 +131,7 @@ export async function GET() {
 
     const workOrders = workOrdersInProgress.map((wo) => ({
       woNumber: wo.woNumber,
-      product: wo.product.name,
+      product: wo.product?.name ?? "—",
       planned: wo.plannedQty,
       produced: wo.producedQty,
       rejected: wo.rejectedQty,
@@ -165,8 +172,8 @@ export async function GET() {
       ],
     });
   } catch (e: any) {
-    console.error("Dashboard error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error("Dashboard error:", e?.message, e?.stack);
+    return NextResponse.json({ error: e.message || "Internal server error" }, { status: 500 });
   }
 }
 

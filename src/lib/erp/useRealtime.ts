@@ -11,17 +11,27 @@ export function useRealtime(tenantId?: string, userId?: string) {
   useEffect(() => {
     if (!tenantId || !userId) return;
 
-    // Connect via gateway — port specified via XTransformPort
-    const socket = io("/?XTransformPort=3001", {
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionDelay: 1000,
-    });
+    let socket: Socket;
+    try {
+      socket = io("http://localhost:3001", {
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionDelay: 2000,
+        reconnectionAttempts: 3,
+        timeout: 8000,
+      });
+    } catch {
+      return;
+    }
     socketRef.current = socket;
 
     socket.on("connect", () => {
       setConnected(true);
       socket.emit("auth", { tenantId, userId });
+    });
+
+    socket.on("connect_error", () => {
+      setConnected(false);
     });
 
     socket.on("disconnect", () => setConnected(false));
@@ -35,6 +45,7 @@ export function useRealtime(tenantId?: string, userId?: string) {
 
     return () => {
       socket.disconnect();
+      socketRef.current = null;
     };
   }, [tenantId, userId]);
 
