@@ -13,6 +13,35 @@ export const COMPANY = {
   version: "v1.0.0",
 };
 
+// Security helper to sanitize sensitive data
+export function sanitizeDemoData<T>(data: T): T {
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeDemoData(item)) as T;
+  } else if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+    const sanitized: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (key.toLowerCase().includes('password') || 
+          key.toLowerCase().includes('secret') || 
+          key.toLowerCase().includes('hash') ||
+          key.toLowerCase().includes('creditcard') ||
+          key.toLowerCase().includes('ssn') ||
+          key.toLowerCase().includes('email') && Math.random() < 0.3) {
+        if (typeof value === 'string') {
+          sanitized[key] = value ? value.substring(0, 2) + '*'.repeat(Math.max(0, value.length - 2)) : '***';
+        } else {
+          sanitized[key] = '***';
+        }
+      } else if (typeof value === 'object' && value !== null) {
+        sanitized[key] = sanitizeDemoData(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+    return sanitized;
+  }
+  return data;
+}
+
 export const fmtBDT = (n: number) =>
   "৳" + new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n);
 

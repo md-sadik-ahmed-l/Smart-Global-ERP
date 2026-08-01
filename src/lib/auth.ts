@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { cache } from "@/lib/cache";
+import { verify2FAForLogin } from "@/lib/twoFactor";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
@@ -13,6 +14,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        twoFactorToken: { label: "2FA Code", type: "text", description: "Enter 6-digit code from your authenticator app (if 2FA is enabled)" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -20,11 +22,30 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Rate limiting: prevent brute force attacks
-        // (Note: in production with Redis, use distributed rate limiter)
-        const { authLimiter } = await import("./rate-limit");
+        const { getRedis } = await import("./redis");
+        const redis = await getRedis();
         const clientKey = `auth:${credentials.email.toLowerCase()}`;
-        const limit = authLimiter.check(clientKey);
-        if (!limit.allowed) {
+        const key = `rate_limit:${clientKey}`;
+        const maxRequests = 10;
+        const windowMs = 60 * 1000;
+
+        // Redis-based rate limiting
+        const now = Date.now();
+        const expiry = now + windowMs;
+
+        // Get current count
+        const current = await redis.get(key);
+        let count = current ? parseInt(current) : 0;
+
+        if (count === 0) {
+          await redis.set(key, "1", "EX", Math.ceil(windowMs / 1000));
+          count = 1;
+        } else if (count < maxRequests) {
+          await redis.incr(key);
+          count++;
+        }
+
+        if (count >= maxRequests) {
           throw new Error("Too many login attempts. Please try again in 1 minute.");
         }
 
@@ -39,9 +60,16 @@ export const authOptions: NextAuthOptions = {
         if (!isValid) throw new Error("Incorrect password");
 
         // 2FA check (if enabled)
-        if (user.twoFactorEnabled && user.twoFactorSecret) {
-          // In production: verify TOTP code here
-          // For now, skip if 2FA not yet enforced
+        if (user.twoFactorEnabled && user.twoFactorSecret && !credentials?.twoFactorToken) {
+          throw new Error("2FA verification required - please enter your 6-digit code from authenticator app");
+        }
+
+        if (user.twoFactorEnabled && user.twoFactorSecret && credentials?.twoFactorToken) {
+          const { verify2FAToken } = await import("./twoFactor");
+          const is2FAValid = await verify2FAToken(user.twoFactorSecret, credentials.twoFactorToken);
+          if (!is2FAValid) {
+            throw new Error("Invalid 2FA code");
+          }
         }
 
         // Non-blocking updates

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { cache } from "@/lib/cache";
+import { cache } from "@/lib/redis";
 import { z } from "zod";
 
 // ==================== AUTH & TENANT ====================

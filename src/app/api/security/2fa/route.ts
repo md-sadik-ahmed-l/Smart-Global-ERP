@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticator } from "otplib";
+import { generateSecret, generateURI, verify } from "otplib";
 import QRCode from "qrcode";
 import { db } from "@/lib/db";
 import { requireAuth, unauthorized, logAudit } from "@/lib/api-helpers";
@@ -16,9 +16,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Generate new secret
-  const secret = authenticator.generateSecret();
+  const secret = generateSecret();
   const serviceName = "Smart Global ERP";
-  const otpauthUrl = authenticator.keyuri(user.email, serviceName, secret);
+  // Remove: authenticator.keyuri - no longer exists in otplib
 
   // Generate QR code as data URL
   const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl, { width: 240 });
