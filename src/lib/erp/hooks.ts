@@ -71,8 +71,10 @@ export function useUpdateCustomer() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["customers"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["customer-profile", vars.id] });
       toast.success("Customer updated");
     },
     onError: (e: any) => toast.error(e.message),
@@ -84,14 +86,165 @@ export function useDeleteCustomer() {
   return useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/customers/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete customer");
+      }
       return res.json();
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["customers"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast.success("Customer deleted");
     },
     onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ==================== CUSTOMER PROFILE ====================
+export function useCustomerProfile(id: string | null) {
+  return useQuery({
+    queryKey: ["customer-profile", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/customers/${id}/profile`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to load customer profile");
+      }
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+// ==================== CUSTOMER NOTES ====================
+export function useCustomerNotes(id: string | null) {
+  return useQuery({
+    queryKey: ["customer-notes", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/customers/${id}/notes`);
+      if (!res.ok) throw new Error("Failed to load notes");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+export function useAddNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, note }: { id: string; note: string }) => {
+      const res = await fetch(`/api/customers/${id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to add note");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["customer-notes", vars.id] });
+      qc.invalidateQueries({ queryKey: ["customer-profile", vars.id] });
+      toast.success("Note added");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useUpdateNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, customerId, note }: { id: string; customerId: string; note: string }) => {
+      const res = await fetch(`/api/notes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update note");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["customer-notes", vars.customerId] });
+      qc.invalidateQueries({ queryKey: ["customer-profile", vars.customerId] });
+      toast.success("Note updated");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useDeleteNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, customerId }: { id: string; customerId: string }) => {
+      const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete note");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["customer-notes", vars.customerId] });
+      qc.invalidateQueries({ queryKey: ["customer-profile", vars.customerId] });
+      toast.success("Note deleted");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ==================== CUSTOMER ACTIVITIES ====================
+export function useCustomerActivities(id: string | null) {
+  return useQuery({
+    queryKey: ["customer-activities", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/customers/${id}/activities`);
+      if (!res.ok) throw new Error("Failed to load activities");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+export function useAddActivity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, type, description }: { id: string; type: string; description?: string }) => {
+      const res = await fetch(`/api/customers/${id}/activity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, description }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to log activity");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["customer-activities", vars.id] });
+      qc.invalidateQueries({ queryKey: ["customer-profile", vars.id] });
+      toast.success("Activity logged");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ==================== CUSTOMER TIMELINE ====================
+export function useCustomerTimeline(id: string | null) {
+  return useQuery({
+    queryKey: ["customer-timeline", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/customers/${id}/timeline`);
+      if (!res.ok) throw new Error("Failed to load timeline");
+      return res.json();
+    },
+    enabled: !!id,
   });
 }
 

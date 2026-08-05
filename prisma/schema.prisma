@@ -273,7 +273,35 @@ model Customer {
   updatedAt   DateTime @updatedAt
 
   @@unique([tenantId, code])
-  salesOrders SalesOrder[]
+  salesOrders       SalesOrder[]
+  customerNotes     CustomerNote[]
+  customerActivities CustomerActivity[]
+}
+
+model CustomerNote {
+  id          String   @id @default(cuid())
+  tenantId    String
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  note        String
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, customerId])
+}
+
+model CustomerActivity {
+  id          String   @id @default(cuid())
+  tenantId    String
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type        String   // Call, Email, Meeting, Follow-up, Order
+  description String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, customerId])
 }
 
 model Vendor {

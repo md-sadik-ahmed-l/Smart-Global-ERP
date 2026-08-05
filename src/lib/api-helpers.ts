@@ -125,6 +125,18 @@ export const customerSchema = z.object({
   notes: z.string().optional(),
 });
 
+// Partial schema for customer updates (PUT) — phone, segment, status etc.
+export const customerUpdateSchema = customerSchema.partial();
+
+export const customerNoteSchema = z.object({
+  note: z.string().min(1, "Note is required").max(4000, "Note is too long"),
+});
+
+export const customerActivitySchema = z.object({
+  type: z.enum(["Call", "Email", "Meeting", "Follow-up", "Order"]),
+  description: z.string().optional(),
+});
+
 export const vendorSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   contactPerson: z.string().optional(),
